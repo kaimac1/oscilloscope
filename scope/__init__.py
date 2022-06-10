@@ -13,7 +13,7 @@ SAMPLES = 128       # width of scope area = number of samples
 SCOPE_HEIGHT = 128
 
 SCALES = [[ADC.ATTN_0DB, 100], [ADC.ATTN_6DB, 200], [ADC.ATTN_11DB, 400]]
-TIMEBASES = [[31, 1], [62, 2], [156, 5], [312, 10], [625, 20], [1562, 50], [3125, 100], [6250, 200], [15625, 500], [31250, 1000]]
+TIMEBASES = [[31, 1], [62, 2], [156, 5], [312, 10], [625, 20], [1562, 50], [3125, 100], [6250, 200], [0, 1000], [0, 2000], [0, 5000], [0, 10000], [0, 20000], [0, 60000]]
 PX_PER_VDIV = 16
 PX_PER_HDIV = 32
 
@@ -37,8 +37,11 @@ class MyApp(TextApp):
         self.timebase = 4
         self.trig = False
         self.trig_voltage = 0.4
-        self.adc_init()
         self.buffer0 = bytearray(SAMPLES)
+        self.roll_mode = False
+        self.roll_display_cnt = 0
+        self.adc_init()
+        self.draw_info()
 
         self.outpin = G3
         self.outpin.init(self.outpin.OUT, self.outpin.PULL_DOWN)
@@ -51,7 +54,10 @@ class MyApp(TextApp):
         self.buttons.on_press(JOY_UP, lambda: self.timebase_set(-1))
         self.buttons.on_press(JOY_DOWN, lambda: self.timebase_set(1))
 
-        self.after(10, self.acquisition_start)
+        self.after(50, self.acquisition_start)
+
+    def clear_buffer(self):
+        self.buffer0 = bytearray(SAMPLES)
 
 
     def btn_ud(self, dx):
@@ -64,11 +70,23 @@ class MyApp(TextApp):
     def scale_set(self, ds):
         if 0 <= (self.scale + ds) < len(SCALES):
             self.scale += ds
-        self.adc_init()
+            self.adc_init()
+            if self.roll_mode:
+                self.clear_buffer()
+            self.draw_info()
+
+
     def timebase_set(self, dt):
         if 0 <= (self.timebase + dt) < len(TIMEBASES):
             self.timebase += dt
-        self.adc_init()
+            self.adc_init()
+
+            if TIMEBASES[self.timebase][0] == 0:
+                self.roll_mode_init(True, TIMEBASES[self.timebase][1])
+            else:
+                self.roll_mode_init(False)
+            self.draw_info()
+
     def trigger_set(self, dt):
         self.trig_voltage += dt * 0.5 * SCALES[self.scale][1] / 1000
         self.draw_info()
@@ -76,7 +94,19 @@ class MyApp(TextApp):
     def adc_init(self):
         self.adc0 = ADC(G0, atten=SCALES[self.scale][0])
         self.vscaling = int((SCALES[self.scale][1] * 1000) / PX_PER_VDIV)
-        self.draw_info()
+
+    def roll_mode_init(self, roll, ms_per_div=0):
+        if roll:
+            if self.roll_mode:
+                self.roll_timer.cancel()
+                self.clear_buffer()
+            self.roll_mode = True
+            self.roll_timer = self.periodic(ms_per_div/PX_PER_HDIV, self.acquire_rollmode)
+        else:
+            if not self.roll_mode: return
+            self.roll_mode = False
+            self.roll_timer.cancel()
+            self.after(0, self.acquisition_start)
 
 
 
@@ -100,6 +130,21 @@ class MyApp(TextApp):
             # 50 Hz noise on 20ms/div setting should line up with the grid lines
             t_adc = time.ticks_diff(time.ticks_us(), t0)
             time.sleep_us(ts_microseconds - t_adc)
+
+    def acquire_rollmode(self):
+        for i in range(SAMPLES-1):
+            self.buffer0[i] = self.buffer0[i+1]
+        self.buffer0[SAMPLES-1] = self.adc0.read_uv() // self.vscaling
+
+        self.roll_display_cnt -= 1
+        if self.roll_display_cnt < 0:
+            self.after(0, self.draw_samples)
+            if TIMEBASES[self.timebase][1] == 2000:
+                self.roll_display_cnt = 1
+            elif TIMEBASES[self.timebase][1] == 1000:
+                self.roll_display_cnt = 3
+            else:
+                self.roll_display_cnt = 0
 
     def acquisition_start(self):
         trig_attempts = 0
@@ -131,8 +176,17 @@ class MyApp(TextApp):
 
     def draw_info(self):
         display.text(font, "{: 4} mV/div".format(SCALES[self.scale][1]), 148, 16, YELLOW, GREY)
-        display.text(font, "{: 4} ms/div".format(TIMEBASES[self.timebase][1]), 148, 28, YELLOW, GREY)
-        display.text(font, "Trig: {:.2f} V".format(self.trig_voltage), 140, 40, YELLOW, GREY)
+        if TIMEBASES[self.timebase][1] < 1000:
+            display.text(font, "{: 4} ms/div".format(TIMEBASES[self.timebase][1]), 148, 28, YELLOW, GREY)
+        else:
+            display.text(font, "{: 4.0f} s/div ".format(TIMEBASES[self.timebase][1] / 1000), 148, 28, RED, GREY)
+
+        if self.roll_mode:
+            trig_msg = "            "
+        else:
+            trig_msg = "Trig: {:.2f} V".format(self.trig_voltage)
+        display.text(font, trig_msg, 140, 40, YELLOW, GREY)
+        
 
     def draw_samples(self):
         # To reduce flicker, clear and redraw one horizontal division at a time
@@ -150,7 +204,8 @@ class MyApp(TextApp):
                 display.line(x0, SCOPE_HEIGHT-j*PX_PER_VDIV, x0+PX_PER_HDIV, SCOPE_HEIGHT-j*PX_PER_VDIV, GREY)
             
             # Trigger level
-            display.line(x0, SCOPE_HEIGHT-1-trig_level, x0+PX_PER_HDIV-1, SCOPE_HEIGHT-1-trig_level, GREEN)
+            if not self.roll_mode:
+                display.line(x0, SCOPE_HEIGHT-1-trig_level, x0+PX_PER_HDIV-1, SCOPE_HEIGHT-1-trig_level, GREEN)
             
             # Trace
             pidx = 0
@@ -170,6 +225,7 @@ class MyApp(TextApp):
         # Sidebar
         display.text(font, "Trig'd" if self.trig else "      ", 132, 4, GREEN, GREY)
 
-        self.after(50, self.acquisition_start)
+        if not self.roll_mode:
+            self.after(0, self.acquisition_start)
 
 main = MyApp
