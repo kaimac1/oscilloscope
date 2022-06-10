@@ -8,6 +8,8 @@ import lodepng
 
 import vga2_8x8 as font
 
+PATH = "/apps/scope/"
+
 GREY = color565(0x20, 0x20, 0x20)
 
 SAMPLES = 128       # width of scope area = number of samples
@@ -29,18 +31,19 @@ class Oscilloscope(TextApp):
     FG = WHITE
 
     def on_start(self):
-        super().on_start()
         self.set_rotation(270)
+        super().on_start()
 
     def on_activate(self):
         super().on_activate()
 
-        (w, h, buf) = lodepng.decode565("/apps/scope/badgilent.png")
+        (w, h, buf) = lodepng.decode565(PATH + "badgilent.png")
         display.blit_buffer(buf, 0, 0, w, h)
         time.sleep(2.5)
         display.fill(BLACK)
         display.fill_rect(SAMPLES, 0, 240-SAMPLES, SCOPE_HEIGHT+1, GREY)
 
+        self.should_quit = False
         self.scale = 0
         self.timebase = 4
         self.trig = False
@@ -58,11 +61,16 @@ class Oscilloscope(TextApp):
         self.buttons.on_press(JOY_RIGHT, lambda: self.btn_ud(1))
         self.buttons.on_press(JOY_UP, lambda: self.timebase_set(-1))
         self.buttons.on_press(JOY_DOWN, lambda: self.timebase_set(1))
+        
+        self.start_new_acquisition()
 
-        self.after(50, self.acquisition_start)
+    def start_new_acquisition(self):
+        if not self.roll_mode and not self.should_quit:
+            self.acq_timer = self.after(0, self.acquisition_start)
 
-    def on_stop(self):
-        pass
+    def on_deactivate(self):
+        self.should_quit = True
+        self.acq_timer.cancel()
 
     def clear_buffer(self):
         self.buffer0 = bytearray(SAMPLES)
@@ -107,16 +115,16 @@ class Oscilloscope(TextApp):
     def roll_mode_init(self, roll, ms_per_div=0):
         if roll:
             if self.roll_mode:
-                self.roll_timer.cancel()
+                self.acq_timer.cancel()
                 self.clear_buffer()
             self.roll_mode = True
-            self.roll_timer = self.periodic(ms_per_div/PX_PER_HDIV, self.acquire_rollmode)
+            self.acq_timer = self.periodic(ms_per_div/PX_PER_HDIV, self.acquire_rollmode)
             self.trig = False
         else:
             if not self.roll_mode: return
             self.roll_mode = False
-            self.roll_timer.cancel()
-            self.after(0, self.acquisition_start)
+            self.acq_timer.cancel()
+            self.start_new_acquisition()
 
 
 
@@ -218,6 +226,8 @@ class Oscilloscope(TextApp):
         
 
     def draw_samples(self):
+        if self.should_quit: return
+
         # To reduce flicker, clear and redraw one horizontal division at a time
         trig_level = int(self.trig_voltage * 1000000) // self.vscaling
         HDIVS = 4
@@ -260,7 +270,6 @@ class Oscilloscope(TextApp):
         display.text(font, "Max: {:.2f} V".format(self.px_to_volts(val_max)), 140, 88, YELLOW, GREY)
         display.text(font, "Avg: {:.2f} V".format(self.px_to_volts(val_avg)), 140, 100, YELLOW, GREY)
 
-        if not self.roll_mode:
-            self.after(0, self.acquisition_start)
+        self.start_new_acquisition()
 
 main = Oscilloscope

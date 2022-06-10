@@ -14,8 +14,14 @@ Left/right - change timebase. Keep pressing right to activate roll mode above 1 
 
 Hold A + up/down to change the trigger level.
 
+## Future
+
+I'd like to have the option to use the accelerometer as an input source. Pull requests welcome for that and any other features!
+
 ## Notes
 
 Not in any way associated with Agilent Technologies, who don't even make scopes anymore.
 
-By @caol_mac
+Repo: https://github.com/kylesrm/oscilloscope
+
+Twitter: https://twitter.com/caol_mac
