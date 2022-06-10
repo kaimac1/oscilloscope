@@ -8,7 +8,7 @@ import lodepng
 
 import vga2_8x8 as font
 
-PATH = "/apps/scope/"
+PATH = "/apps/oscilloscope/"
 
 GREY = color565(0x20, 0x20, 0x20)
 
