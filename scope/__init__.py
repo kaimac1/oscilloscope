@@ -4,6 +4,7 @@ from app import TextApp
 import machine
 from machine import ADC
 import time
+import lodepng
 
 import vga2_8x8 as font
 
@@ -33,6 +34,11 @@ class MyApp(TextApp):
 
     def on_activate(self):
         super().on_activate()
+
+        (w, h, buf) = lodepng.decode565("/apps/scope/badgilent.png")
+        display.blit_buffer(buf, 0, 0, w, h)
+        time.sleep(2.5)
+        display.fill(BLACK)
         display.fill_rect(SAMPLES, 0, 240-SAMPLES, SCOPE_HEIGHT+1, GREY)
 
         self.scale = 0
@@ -57,6 +63,9 @@ class MyApp(TextApp):
 
     def clear_buffer(self):
         self.buffer0 = bytearray(SAMPLES)
+
+    def px_to_volts(self, val):
+        return val / PX_PER_VDIV * (SCALES[self.scale][1] / 1000)
 
     def btn_ud(self, dx):
         if BUTTON_A.value() == 1:
@@ -190,9 +199,9 @@ class MyApp(TextApp):
     # Drawing
 
     def draw_info(self):
-        display.text(font, "{: 4} mV/div".format(SCALES[self.scale][1]), 148, 16, YELLOW, GREY)
+        display.text(font, "{: 4} mV/div".format(SCALES[self.scale][1]), 148, 16, WHITE, GREY)
         if TIMEBASES[self.timebase][1] < 1000:
-            display.text(font, "{: 4} ms/div".format(TIMEBASES[self.timebase][1]), 148, 28, YELLOW, GREY)
+            display.text(font, "{: 4} ms/div".format(TIMEBASES[self.timebase][1]), 148, 28, WHITE, GREY)
         else:
             display.text(font, "{: 4.0f} s/div ".format(TIMEBASES[self.timebase][1] / 1000), 148, 28, RED, GREY)
 
@@ -200,7 +209,9 @@ class MyApp(TextApp):
             trig_msg = "            "
         else:
             trig_msg = "Trig: {:.2f} V".format(self.trig_voltage)
-        display.text(font, trig_msg, 140, 40, YELLOW, GREY)
+        display.text(font, trig_msg, 140, 40, WHITE, GREY)
+
+        display.text(font, "Src: Pin G0", 148, 52, YELLOW, GREY)
         
 
     def draw_samples(self):
@@ -235,10 +246,16 @@ class MyApp(TextApp):
                 prev_x = x
                 prev_y = y
 
-
-
         # Sidebar
         display.text(font, "Trig'd" if self.trig else "      ", 132, 4, GREEN, GREY)
+
+        # Measurements
+        val_max = max(self.buffer0)
+        val_min = min(self.buffer0)
+        val_avg = sum(self.buffer0) / len(self.buffer0)
+        display.text(font, "Min: {:.2f} V".format(self.px_to_volts(val_min)), 140, 76, YELLOW, GREY)
+        display.text(font, "Max: {:.2f} V".format(self.px_to_volts(val_max)), 140, 88, YELLOW, GREY)
+        display.text(font, "Avg: {:.2f} V".format(self.px_to_volts(val_avg)), 140, 100, YELLOW, GREY)
 
         if not self.roll_mode:
             self.after(0, self.acquisition_start)
