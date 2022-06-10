@@ -24,7 +24,7 @@ MAX_TRIGGER_CYCLES = 256
 
 
 
-class MyApp(TextApp):
+class Oscilloscope(TextApp):
     BG = BLACK
     FG = WHITE
 
@@ -60,6 +60,9 @@ class MyApp(TextApp):
         self.buttons.on_press(JOY_DOWN, lambda: self.timebase_set(1))
 
         self.after(50, self.acquisition_start)
+
+    def on_stop(self):
+        pass
 
     def clear_buffer(self):
         self.buffer0 = bytearray(SAMPLES)
@@ -260,4 +263,4 @@ class MyApp(TextApp):
         if not self.roll_mode:
             self.after(0, self.acquisition_start)
 
-main = MyApp
+main = Oscilloscope
