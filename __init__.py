@@ -24,7 +24,8 @@ PX_PER_HDIV = 32
 TRIGGER_WIDTH = 1
 MAX_TRIGGER_CYCLES = 256
 
-
+with open(PATH + "version") as f:
+    VERSION = f.read()
 
 class Oscilloscope(TextApp):
     BG = BLACK
@@ -39,6 +40,7 @@ class Oscilloscope(TextApp):
 
         (w, h, buf) = lodepng.decode565(PATH + "badgilent.png")
         display.blit_buffer(buf, 0, 0, w, h)
+        display.text(font, "V{}".format(VERSION), 112, 120, BLUE, WHITE)
         time.sleep(2.5)
         display.fill(BLACK)
         display.fill_rect(SAMPLES, 0, 240-SAMPLES, SCOPE_HEIGHT+1, GREY)
@@ -170,6 +172,7 @@ class Oscilloscope(TextApp):
     def acquire_async(self):
         if self.roll_mode:
             self.acq_timer.cancel()
+            return
         self.buffer0[self.bufidx] = self.adc0.read_uv() // self.vscaling
         self.bufidx += 1
         if self.bufidx == SAMPLES:
