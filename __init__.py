@@ -5,6 +5,7 @@ import machine
 from machine import ADC
 import time
 import lodepng
+from scheduler import get_scheduler
 
 import vga2_8x8 as font
 
@@ -44,6 +45,10 @@ class Oscilloscope(TextApp):
         time.sleep(2.5)
         display.fill(BLACK)
         display.fill_rect(SAMPLES, 0, 240-SAMPLES, SCOPE_HEIGHT+1, GREY)
+
+        # The badge doesn't sleep when connected to USB.
+        # Roll mode is broken when not connected to USB, unless sleeping is disabled - why?
+        get_scheduler().set_sleep_enabled(False)
 
         self.should_quit = False
         self.scale = 0
