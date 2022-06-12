@@ -114,10 +114,9 @@ class Oscilloscope(TextApp):
 
     def roll_mode_init(self, roll, ms_per_div=0):
         if roll:
-            if self.roll_mode:
-                self.acq_timer.cancel()
-                self.clear_buffer()
             self.roll_mode = True
+            self.acq_timer.cancel()
+            self.clear_buffer()
             self.acq_timer = self.periodic(ms_per_div/PX_PER_HDIV, self.acquire_rollmode)
             self.trig = False
         else:
@@ -169,6 +168,8 @@ class Oscilloscope(TextApp):
                 self.roll_display_cnt = 0
 
     def acquire_async(self):
+        if self.roll_mode:
+            self.acq_timer.cancel()
         self.buffer0[self.bufidx] = self.adc0.read_uv() // self.vscaling
         self.bufidx += 1
         if self.bufidx == SAMPLES:
