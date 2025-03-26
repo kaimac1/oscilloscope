@@ -22,6 +22,3 @@ I'd like to have the option to use the accelerometer as an input source. Pull re
 
 Not in any way associated with Agilent Technologies, who don't even make scopes anymore.
 
-Repo: https://github.com/kylesrm/oscilloscope
-
-Twitter: https://twitter.com/caol_mac
